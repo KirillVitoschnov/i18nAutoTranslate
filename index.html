@@ -1,0 +1,100 @@
+<div style="margin-bottom: 1rem">
+    Исходящий язык
+    <select id="outputLang">
+        <option value="en">английский язык</option>
+        <option value="ru">русский язык</option>
+        <option value="kk">казахский язык</option>
+    </select>
+</div>
+<input style="margin-bottom: 1rem" id="inputKey" type="text" placeholder="укажите ключ">
+<div>Входной файл
+    <input type="file" onchange="showFile(this)">
+</div>
+<script>
+    function showFile(input) {
+        let file = input.files[0];
+        let reader = new FileReader();
+        reader.readAsText(file);
+        reader.onload = function() {
+            let result = JSON.parse(reader.result);
+            (async function() {
+                let resultKeys = Object.keys(result);
+                let resultValues = Object.values(result);
+                for (let i = 0; i < resultValues.length; i++) {
+                    if (typeof result[resultKeys[i]] != 'object') {
+                        if (result[resultKeys[i]].length < 600) {
+                            result[resultKeys[i]] = await translate(resultValues[i], 'ru', document.getElementById("outputLang").value);
+                        }
+                        else{
+                            result[resultKeys[i]] = await translateObject(resultValues[i].split('.'), 'ru', document.getElementById("outputLang").value);  
+                        }
+                    } else {
+                        result[resultKeys[i]] = await translateObject(resultValues[i], 'ru', document.getElementById("outputLang").value);
+                    }
+                }
+                download(result, document.getElementById("outputLang").value)
+            })()
+        };
+        reader.onerror = function() {
+            console.log(reader.error);
+        };
+
+    }
+
+    function download(text, translateLocale) {
+        var blob = new Blob([JSON.stringify(text)], {
+            type: 'json'
+        });
+        var a = document.createElement('a');
+        a.download = translateLocale
+        a.href = URL.createObjectURL(blob);
+        a.dataset.downloadurl = ['json', a.download, a.href].join(':');
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function() {
+            URL.revokeObjectURL(a.href);
+        }, 1500);
+    }
+
+    async function translate(text, langIn, langOut) {
+       if(text && text.length<600){
+        let key = document.getElementById('inputKey').value ? document.getElementById('inputKey').value : '082ade17.62c71cd2.4cd99019.74722d74657874-0-0'
+
+        let params = new URLSearchParams();
+        params.set('text', text);
+        let result = await fetch(`https://translate.yandex.net/api/v1/tr.json/translate?id=${key}&srv=tr-text&lang=${langIn}-${langOut}&reason=paste&format=text&yu=2611706231654712715`, {
+            method: 'POST',
+            body: params
+        });
+        let json = await result.json()
+        if (await json.text[0]) {
+            return await json.text[0]
+        }
+    }
+        return text
+    }
+    async function translateObject(text, langIn, langOut) {
+        let result = text;
+        let resultKeys = Object.keys(result);
+        let resultValues = Object.values(result);
+        for (let i = 0; i < resultValues.length; i++) {
+            if (typeof result[resultKeys[i]] != 'object') {
+                if (result[resultKeys[i]].length < 600) {
+                            result[resultKeys[i]] = await translate(resultValues[i], 'ru', document.getElementById("outputLang").value);
+                        }
+                        else{
+                            result[resultKeys[i]] = await translateObject(resultValues[i].split('.'), 'ru', document.getElementById("outputLang").value);  
+                        }
+            } else {
+                result[resultKeys[i]] = await translateObject(resultValues[i], langIn, langOut);
+            }
+        }
+
+        if(Array.isArray(result)){
+            result=result.join('')
+        }
+        return result
+    }
+</script>
